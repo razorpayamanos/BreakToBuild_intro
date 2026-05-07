@@ -1,222 +1,225 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="color-scheme" content="light" />
-<title>IPL 26 - Break to Build</title>
-<!--
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>IPL 26 - Break to Build</title>
+  <!--
   Stage 1 stand-in: this page sits behind index.html's brick wall.
   It keeps the wall-broken postMessage reveal hook used by the prototype.
 -->
-<style>
-  @font-face {
-    font-family: "Inter Tight Local";
-    src: url("./figma-assets/InterTight-Regular.ttf") format("truetype");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
+  <style>
+    @font-face {
+      font-family: "Inter Tight Local";
+      src: url("./figma-assets/InterTight-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
 
-  @font-face {
-    font-family: "Inter Tight Local";
-    src: url("./figma-assets/InterTight-SemiBold.ttf") format("truetype");
-    font-weight: 600;
-    font-style: normal;
-    font-display: swap;
-  }
+    @font-face {
+      font-family: "Inter Tight Local";
+      src: url("./figma-assets/InterTight-SemiBold.ttf") format("truetype");
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+    }
 
-  * {
-    box-sizing: border-box;
-    margin: 0;
-  }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
 
-  html,
-  body {
-    min-width: 320px;
-    min-height: 100%;
-    background: #ffffff;
-    color: #000000;
-    font-family: "Inter Tight Local", -apple-system, BlinkMacSystemFont, "Segoe UI",
-      system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: geometricPrecision;
-  }
+    html,
+    body {
+      min-width: 320px;
+      min-height: 100%;
+      background: #ffffff;
+      color: #000000;
+      font-family: "Inter Tight Local", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
+    }
 
-  body {
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    overflow-x: hidden;
-  }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      overflow-x: hidden;
+    }
 
-  .campaign {
-    position: relative;
-    width: min(100vw, 1440px);
-    aspect-ratio: 1440 / 1021;
-    background: #ffffff;
-    overflow: hidden;
-    flex: 0 0 auto;
-  }
+    .campaign {
+      position: relative;
+      width: min(100vw, 1440px);
+      aspect-ratio: 1440 / 1021;
+      background: #ffffff;
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
 
-  .brand-razorpay,
-  .brand-campaign,
-  .photo,
-  .title-art {
-    position: absolute;
-    display: block;
-    object-fit: fill;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
+    .brand-razorpay,
+    .brand-campaign,
+    .photo,
+    .title-art {
+      position: absolute;
+      display: block;
+      object-fit: fill;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
 
-  .brand-razorpay {
-    left: 2.778%;
-    top: 3.902%;
-    width: 10.417%;
-    height: 3.134%;
-  }
+    .brand-razorpay {
+      left: 2.778%;
+      top: 3.902%;
+      width: 10.417%;
+      height: 3.134%;
+    }
 
-  .brand-campaign {
-    left: 14.583%;
-    top: 3.247%;
-    width: 10.165%;
-    height: 3.805%;
-  }
+    .brand-campaign {
+      left: 14.583%;
+      top: 3.247%;
+      width: 10.165%;
+      height: 3.805%;
+    }
 
-  .site-nav {
-    position: absolute;
-    left: 45.348%;
-    top: 4.589%;
-    display: flex;
-    align-items: center;
-    gap: min(4.167vw, 60px);
-    font-size: min(1.111vw, 16px);
-    line-height: 1.1875;
-    white-space: nowrap;
-    text-transform: capitalize;
-  }
+    .site-nav {
+      position: absolute;
+      left: 45.348%;
+      top: 4.589%;
+      display: flex;
+      align-items: center;
+      gap: min(4.167vw, 60px);
+      font-size: min(1.111vw, 16px);
+      line-height: 1.1875;
+      white-space: nowrap;
+      text-transform: capitalize;
+    }
 
-  .site-nav a {
-    color: #000000;
-    text-decoration: none;
-    font-weight: 400;
-  }
+    .site-nav a {
+      color: #000000;
+      text-decoration: none;
+      font-weight: 400;
+    }
 
-  .site-nav a[aria-current="page"] {
-    color: #305eff;
-    font-weight: 600;
-  }
+    .site-nav a[aria-current="page"] {
+      color: #305eff;
+      font-weight: 600;
+    }
 
-  .brick-button {
-    position: absolute;
-    left: 86.389%;
-    top: 3.217%;
-    width: 10.417%;
-    height: 4.701%;
-    display: grid;
-    place-items: center;
-    border: 1px solid #305eff;
-    border-radius: min(0.694vw, 10px);
-    background: #030407;
-    color: #ffffff;
-    font-size: min(1.111vw, 16px);
-    font-weight: 600;
-    line-height: 1;
-    text-decoration: none;
-    box-shadow:
-      inset 0 1.5px 0 rgba(255, 255, 255, 0.17),
-      inset 0 -2px 0 rgba(255, 255, 255, 0.12),
-      inset 0 0 0 0.5px #305eff;
-  }
+    .brick-button {
+      position: absolute;
+      left: 86.389%;
+      top: 3.217%;
+      width: 10.417%;
+      height: 4.701%;
+      display: grid;
+      place-items: center;
+      border: 1px solid #305eff;
+      border-radius: min(0.694vw, 10px);
+      background: #030407;
+      color: #ffffff;
+      font-size: min(1.111vw, 16px);
+      font-weight: 600;
+      line-height: 1;
+      text-decoration: none;
+      box-shadow:
+        inset 0 1.5px 0 rgba(255, 255, 255, 0.17),
+        inset 0 -2px 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 0 0.5px #305eff;
+    }
 
-  .brick-button:focus-visible {
-    outline: 3px solid #305eff;
-    outline-offset: 4px;
-  }
+    .brick-button:focus-visible {
+      outline: 3px solid #305eff;
+      outline-offset: 4px;
+    }
 
-  .hero-title-art {
-    left: 3.75%;
-    top: 13.026%;
-    width: 57.917%;
-    height: 22.331%;
-  }
+    .hero-title-art {
+      left: 3.75%;
+      top: 13.026%;
+      width: 57.917%;
+      height: 22.331%;
+    }
 
-  .photo-large {
-    left: 61.462%;
-    top: 27.228%;
-    width: 34.758%;
-    height: 47.805%;
-  }
+    .photo-large {
+      left: 61.462%;
+      top: 27.228%;
+      width: 34.758%;
+      height: 47.805%;
+    }
 
-  .photo-hose {
-    left: 35.655%;
-    top: 39.568%;
-    width: 25.807%;
-    height: 35.494%;
-  }
+    .photo-hose {
+      left: 35.655%;
+      top: 39.568%;
+      width: 25.807%;
+      height: 35.494%;
+    }
 
-  .photo-small {
-    left: 16.974%;
-    top: 49.319%;
-    width: 18.681%;
-    height: 25.697%;
-  }
+    .photo-small {
+      left: 16.974%;
+      top: 49.319%;
+      width: 18.681%;
+      height: 25.697%;
+    }
 
-  .photo-red {
-    left: 3.75%;
-    top: 56.826%;
-    width: 13.224%;
-    height: 18.188%;
-  }
+    .photo-red {
+      left: 3.75%;
+      top: 56.826%;
+      width: 13.224%;
+      height: 18.188%;
+    }
 
   .builder-title-art {
     left: 3.75%;
     top: 84.231%;
     width: 52.222%;
-    height: 11.263%;
+    height: 16%;
   }
 
-  .story-copy {
-    position: absolute;
-    left: 61.806%;
-    top: 83.742%;
-    width: 30.139%;
-    color: #000000;
-    font-size: min(1.43vw, 20.588px);
-    line-height: 1.2;
-    font-weight: 400;
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  body.revealed:not(.standalone) .campaign {
-    animation: revealUp 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  @keyframes revealUp {
-    from {
-      opacity: 0;
-      transform: translateY(16px);
+    .story-copy {
+      position: absolute;
+      left: 61.806%;
+      top: 83.742%;
+      width: 30.139%;
+      color: #000000;
+      font-size: min(1.43vw, 20.588px);
+      line-height: 1.2;
+      font-weight: 400;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
-  }
-</style>
+
+    body.revealed:not(.standalone) .campaign {
+      animation: revealUp 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes revealUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
 </head>
+
 <body>
   <main class="campaign" aria-label="Built against odds, built for India campaign">
     <img class="brand-razorpay" src="./figma-assets/razorpay-logo.svg" alt="Razorpay" />
@@ -231,12 +234,7 @@
     <a class="brick-button" href="#">Break the Brick</a>
 
     <h1 class="sr-only">Built against odds, built for India.</h1>
-    <img
-      class="title-art hero-title-art"
-      src="./figma-assets/hero-title.png"
-      alt=""
-      aria-hidden="true"
-    />
+    <img class="title-art hero-title-art" src="./figma-assets/hero-title.png" alt="" aria-hidden="true" />
 
     <img class="photo photo-red" src="./figma-assets/red-founder.png" alt="" />
     <img class="photo photo-small" src="./figma-assets/bat-founder-small.png" alt="" />
@@ -244,12 +242,7 @@
     <img class="photo photo-large" src="./figma-assets/bat-founder-large.png" alt="" />
 
     <h2 class="sr-only">Meet 30 builders who refused the odds holding India back.</h2>
-    <img
-      class="title-art builder-title-art"
-      src="./figma-assets/builder-title.png"
-      alt=""
-      aria-hidden="true"
-    />
+    <img class="title-art builder-title-art" src="./figma-assets/builder-title.png" alt="" aria-hidden="true" />
     <p class="story-copy">
       Each story is proof that when founders break through, India moves forward.
     </p>
@@ -268,4 +261,5 @@
     }
   </script>
 </body>
+
 </html>
