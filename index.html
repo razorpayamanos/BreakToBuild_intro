@@ -223,6 +223,161 @@
     /* a11y / reduced-motion stub:
      A real implementation would short-circuit the explosion timeline
      and call onWallBroken() immediately. Not built in Stage 1. */
+
+    /* ───────────────────────────────────────────────────────────────────
+       Control panel — bottom-right, live physics tuning
+       ─────────────────────────────────────────────────────────────────── */
+    #cp {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      max-height: calc(100vh - 40px);
+      background: rgba(15, 15, 22, 0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      color: rgba(255, 255, 255, 0.92);
+      z-index: 30;
+      overflow: hidden;
+      box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+      user-select: none;
+    }
+
+    #cp.collapsed { width: auto; }
+    #cp.collapsed .cp-body { display: none; }
+
+    .cp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      transition: background 200ms ease;
+    }
+    .cp-header:hover { background: rgba(255, 255, 255, 0.07); }
+
+    .cp-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .cp-toggle {
+      font-size: 9px;
+      color: rgba(255, 200, 100, 0.7);
+      transition: transform 250ms ease;
+    }
+    #cp.collapsed .cp-toggle { transform: rotate(-90deg); }
+
+    .cp-body {
+      padding: 8px 18px 18px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+    .cp-body::-webkit-scrollbar { width: 6px; }
+    .cp-body::-webkit-scrollbar-track { background: transparent; }
+    .cp-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+
+    .cp-section {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(255, 200, 100, 0.65);
+      margin: 18px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .cp-section:first-child { margin-top: 6px; }
+
+    .cp-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 4px 12px;
+      padding: 7px 0;
+    }
+
+    .cp-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.72);
+      font-weight: 500;
+    }
+
+    .cp-value {
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: #ffc94c;
+      font-weight: 600;
+      min-width: 38px;
+      text-align: right;
+    }
+
+    .cp-row input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      height: 4px;
+      margin: 4px 0 0;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(
+        to right,
+        rgba(255, 200, 100, 0.55) 0%,
+        rgba(255, 200, 100, 0.55) var(--fill, 50%),
+        rgba(255, 255, 255, 0.10) var(--fill, 50%),
+        rgba(255, 255, 255, 0.10) 100%
+      );
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .cp-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #ffc94c;
+      border: 2px solid rgba(15, 15, 22, 0.95);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      transition: transform 100ms ease;
+    }
+    .cp-row input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .cp-row input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: #ffc94c;
+      border: 2px solid rgba(15, 15, 22, 0.95);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .cp-button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 11px;
+      background: rgba(255, 200, 100, 0.12);
+      border: 1px solid rgba(255, 200, 100, 0.28);
+      border-radius: 6px;
+      color: #ffc94c;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 200ms, transform 80ms;
+      font-family: inherit;
+    }
+    .cp-button:hover { background: rgba(255, 200, 100, 0.22); }
+    .cp-button:active { transform: scale(0.98); }
   </style>
 </head>
 
@@ -246,6 +401,15 @@
     src="./campaign-site.html"
     loading="eager"></iframe>
 
+  <!-- Live physics tuning panel (Stage 1 dev tool — REMOVE for Stage 2 export) -->
+  <div id="cp">
+    <div class="cp-header">
+      <span class="cp-title">Physics</span>
+      <span class="cp-toggle">▼</span>
+    </div>
+    <div class="cp-body"></div>
+  </div>
+
   <script type="module">
     import * as THREE from 'https://esm.sh/three@0.160.0';
     import { GLTFLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
@@ -256,25 +420,106 @@
     // ---------------------------------------------------------------------------
     const brickGlbUrl = './Brick.glb';
     const wallColumns = 20;     // bricks across
-    const wallRows = 12;     // bricks tall
-    const explosionImpulse = 8;      // base outward kick magnitude
-    const cameraStartZ = 6;      // camera Z before click (closer = bricks bigger in frame, matches reference)
-    const cameraEndZ = -2;     // camera Z after push-through
-    const dustParticleCount = 150;    // particles in the dust burst
+    const wallRows = 12;        // bricks tall
+    // Camera Z is now AUTO-FIT to the wall + viewport (see fitCameraToWall).
+    // This initial value is just a sane fallback used until the wall is built.
+    let cameraStartZ = 12;
+    const cameraEndZ = -2;      // (unused — camera no longer dollies forward after the explosion)
+    const dustParticleCount = 150; // dust burst particle count (currently disabled)
     const enableShake = true;
-    const enableSound = false;  // Stage 1: no audio. TODO Stage 2: load CC0 thud and play one-shot.
+    const enableSound = false;
     const buttonLabel = 'Break the Wall';
-    const triggerMode = 'button'; // 'button' | 'wall-click'
+    // 'wall-click' = clicking a brick breaks the wall from THAT contact point.
+    // 'button'     = clicking the button breaks from the wall center.
+    const triggerMode = 'wall-click';
+
+    // ─── Mouse interactivity ──────────────────────────────────────────────
+    // Hovering near a brick pushes it forward in Z (toward the camera) — a
+    // "magnetic" feel where the wall surface deforms toward the cursor with a
+    // smooth radial falloff. Clicking on a brick fires the wall-break from
+    // that contact point.
+    // ⚠️ The values below are LIVE-EDITABLE via the bottom-right control panel
+    //   (let, not const, so the panel sliders can mutate them at runtime).
+    let PROXIMITY_RADIUS = 2.0;         // bricks within this distance of cursor are nudged forward
+    let PROXIMITY_MAX_OFFSET = 0.45;    // peak Z displacement (units toward camera)
+    let PROXIMITY_LERP = 0.18;          // smoothing factor per frame
+
+    // ─── Wall-break physics (researched, not just an "explosion") ────────
+    // Real masonry fails by mortar fracture propagating outward from impact
+    // as a shockwave. Bricks near the impact get a strong outward impulse;
+    // bricks farther away mostly LOSE SUPPORT and fall under gravity — they
+    // don't fly outward. Modeled as:
+    //   - exponential force falloff with distance (much steeper than linear)
+    //   - time-delayed activation (visible cascade) at a slow shockwave speed
+    //   - elevated gravity for snappy weight (visual scale ≠ real-world)
+    //   - per-brick linear + angular damping so bricks settle, don't skate
+    //   - collision groups: still-kinematic bricks don't deflect dynamic ones
+    // (Live-editable via panel — see physics state object below)
+    let SHOCK_RADIUS = 6.0;
+    let SHOCK_PROPAGATION_SPEED = 28;
+    let SHOCK_IMPULSE_BASE = 55;
+    let SHOCK_FALLOFF_SCALE = 2.0;
+    let GRAVITY = 18;                     // m/s² — slower than 28 (which was too fast). 18 reads as ~5kg brick weight.
+    let BRICK_DENSITY = 2.4;
+    let BRICK_FRICTION = 0.85;
+    let BRICK_RESTITUTION = 0;            // bricks do NOT bounce — purely inelastic collisions
+    let BRICK_LINEAR_DAMPING = 0.04;
+    let BRICK_ANGULAR_DAMPING = 0.30;
+
+    // Collision groups: high 16 bits = membership, low 16 bits = filter mask.
+    // Two colliders interact iff (A.member & B.filter) ≠ 0 AND vice versa.
+    // We give kinematic bricks a filter that ONLY includes the ground, so
+    // dynamic bricks (already activated) can fly past their not-yet-activated
+    // neighbors during the cascade without bouncing off them.
+    const GROUP_KINEMATIC = (1 << 16) | 4;  // member 1, filter 4 (ground only)
+    const GROUP_DYNAMIC   = (2 << 16) | 6;  // member 2, filter 4|2 (ground + other dynamic)
+    const GROUP_GROUND    = (4 << 16) | 3;  // member 4, filter 1|2 (kinematic + dynamic)
 
     // Internal timing (ms, relative to click)
     const T_SHAKE_MS = 300;
-    const T_PUSH_DELAY = 600;
-    const T_PUSH_MS = 1200;
-    const T_FADE_MS = 400; // tail of push
-    const T_TOTAL_MS = T_PUSH_DELAY + T_PUSH_MS; // 1800
+    // Time from click to when the canvas is removed. Long enough for every
+    // brick to finish its fall — at GRAVITY=18 the cascade plus settling takes
+    // 2.5–3.5s, so we keep a generous window and let the panel tune it.
+    let T_TOTAL_MS = 3500;
 
     // Mortar gap (kept minimal so the iframe behind doesn't leak through seams)
     const MORTAR_GAP = 0.005;
+
+    // ─── Persisted physics tuning (localStorage) ─────────────────────────
+    // Keys saved across reloads so the user's tuned values come back on load.
+    // Versioned in case we change the schema; bump the suffix to invalidate.
+    const STORAGE_KEY = 'breakwall-physics-v1';
+
+    function loadPersistedValues() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (typeof s.SHOCK_IMPULSE_BASE      === 'number') SHOCK_IMPULSE_BASE      = s.SHOCK_IMPULSE_BASE;
+        if (typeof s.SHOCK_RADIUS            === 'number') SHOCK_RADIUS            = s.SHOCK_RADIUS;
+        if (typeof s.SHOCK_PROPAGATION_SPEED === 'number') SHOCK_PROPAGATION_SPEED = s.SHOCK_PROPAGATION_SPEED;
+        if (typeof s.GRAVITY                 === 'number') GRAVITY                 = s.GRAVITY;
+        if (typeof s.PROXIMITY_RADIUS        === 'number') PROXIMITY_RADIUS        = s.PROXIMITY_RADIUS;
+        if (typeof s.PROXIMITY_MAX_OFFSET    === 'number') PROXIMITY_MAX_OFFSET    = s.PROXIMITY_MAX_OFFSET;
+      } catch (_) { /* corrupt storage — fall back to defaults */ }
+    }
+
+    function persistValues() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          SHOCK_IMPULSE_BASE,
+          SHOCK_RADIUS,
+          SHOCK_PROPAGATION_SPEED,
+          GRAVITY,
+          PROXIMITY_RADIUS,
+          PROXIMITY_MAX_OFFSET,
+        }));
+      } catch (_) { /* storage disabled — silently skip */ }
+    }
+
+    // Load BEFORE Rapier so the world picks up the persisted gravity, and
+    // BEFORE brick body creation so densities/damping defaults reflect prefs.
+    loadPersistedValues();
 
     // ---------------------------------------------------------------------------
     // Boot: init physics WASM, then build everything
@@ -405,17 +650,27 @@
     // ---------------------------------------------------------------------------
     // Rapier physics
     // ---------------------------------------------------------------------------
-    const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    const world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
 
     // Static ground far below — debris always lands somewhere
     const groundY = -wallTotalH / 2 - 6;
     const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, groundY, 0);
     const groundBody = world.createRigidBody(groundDesc);
-    const groundColliderDesc = RAPIER.ColliderDesc.cuboid(80, 0.5, 40);
-    world.createCollider(groundColliderDesc, groundBody);
+    const groundColliderDesc = RAPIER.ColliderDesc.cuboid(80, 0.5, 40)
+      .setFriction(BRICK_FRICTION)
+      .setRestitution(BRICK_RESTITUTION)
+      .setCollisionGroups(GROUP_GROUND);
+    const groundCollider = world.createCollider(groundColliderDesc, groundBody);
 
-    // Per-brick: kinematicPositionBased (rock-still under gravity) until click
+    // Per-brick: kinematicPositionBased (rock-still under gravity) until click.
+    // We also track each brick's REST position so:
+    //   - hover proximity can lerp brick.z back/forward relative to rest
+    //   - the cascade can compute distance from any chosen impact origin
     const brickBodies = [];
+    const brickRestPositions = []; // THREE.Vector3 per brick
+    const brickActivated = [];     // flips to true when the brick goes Dynamic
+    const brickDelays = [];        // ms after click when each brick activates
+
     const tmpMat = new THREE.Matrix4();
     const tmpQuat = new THREE.Quaternion();
     const tmpScale = new THREE.Vector3(1, 1, 1);
@@ -435,18 +690,47 @@
         instancedMesh.setMatrixAt(i, tmpMat);
 
         const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-          .setTranslation(x, y, z);
+          .setTranslation(x, y, z)
+          .setLinearDamping(BRICK_LINEAR_DAMPING)
+          .setAngularDamping(BRICK_ANGULAR_DAMPING)
+          .setCcdEnabled(true); // prevent fast bricks from tunneling through ground
         const body = world.createRigidBody(bodyDesc);
         const colDesc = RAPIER.ColliderDesc
           .cuboid(halfExtents.x, halfExtents.y, halfExtents.z)
-          .setDensity(2.0)        // brick is heavy
-          .setFriction(0.7)
-          .setRestitution(0.05);  // slight bounce, mostly absorbs
+          .setDensity(BRICK_DENSITY)
+          .setFriction(BRICK_FRICTION)
+          .setRestitution(BRICK_RESTITUTION)
+          .setCollisionGroups(GROUP_KINEMATIC); // only collides with ground while kinematic
         world.createCollider(colDesc, body);
         brickBodies.push(body);
+        brickRestPositions.push(new THREE.Vector3(x, y, z));
+        brickActivated.push(false);
+        brickDelays.push(0);
       }
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
+
+    // InstancedMesh raycasting needs both bounds on the geometry. computeBoundingBox
+    // is already done; sphere is required for the broad-phase.
+    brickGeometry.computeBoundingSphere();
+
+    // ─── Auto-fit camera so the wall ALWAYS covers the viewport ──────────
+    // Compute the camera Z that just barely fits the wall in the viewport
+    // (use the limiting dimension — height OR width, whichever needs the
+    // closer camera). A small overshoot factor (0.96) ensures the wall
+    // exceeds the viewport in the limiting dimension by ~4%, so we never
+    // see edge gaps from rounding or tiny resize jitter.
+    function fitCameraToWall() {
+      const fovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfFov = Math.tan(fovRad / 2);
+      const viewportAspect = window.innerWidth / window.innerHeight;
+      const dHeight = wallTotalH / (2 * tanHalfFov);
+      const dWidth  = wallTotalW / (2 * tanHalfFov * viewportAspect);
+      const d = Math.min(dHeight, dWidth) * 0.96;
+      camera.position.set(0, 0, d);
+      cameraStartZ = d;
+    }
+    fitCameraToWall();
 
     // ---------------------------------------------------------------------------
     // Dust particles (THREE.Points, runtime-generated soft circle alpha)
@@ -497,13 +781,31 @@
     let onWallBrokenFired = false;
     const cameraBase = new THREE.Vector3().copy(camera.position);
 
-    const explosionOrigin = new THREE.Vector3(0, 0, -0.5);
+    // Origin of the next explosion — set on click via raycast hit point.
+    // Defaults to wall center until then (so the button trigger has a sane
+    // origin if used).
+    const explosionOrigin = new THREE.Vector3(0, 0, 0);
+
+    // ─── Mouse / raycasting state ────────────────────────────────────────
+    // mouseNDC starts way off-screen so the first frame doesn't mass-attract
+    // bricks toward (0,0) before the user has moved their cursor.
+    const raycaster = new THREE.Raycaster();
+    const mouseNDC = new THREE.Vector2(99999, 99999);
+    const cursorOnWall = new THREE.Vector3(99999, 99999, 0);
+    const wallPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    let mouseInsideWindow = false;
 
     function easeInOutCubic(t) {
       return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
     function easeOutCubic(t) {
       return 1 - Math.pow(1 - t, 3);
+    }
+    // Smoothstep — used for the proximity falloff curve. 0..1 in, 0..1 out
+    // with zero-derivative at both ends — gives a clean plateau over the
+    // hovered brick and a soft falloff to neighbors.
+    function smoothstep(t) {
+      return t * t * (3 - 2 * t);
     }
 
     function emitDustBurst() {
@@ -516,14 +818,13 @@
         dustPositions[i * 3 + 1] = py;
         dustPositions[i * 3 + 2] = pz;
 
-        // Velocity: outward from explosion origin, with up-bias and forward-bias
         const dir = new THREE.Vector3(px, py, pz).sub(explosionOrigin);
         const dist = Math.max(dir.length(), 0.001);
         dir.divideScalar(dist);
         const speed = 2 + Math.random() * 4;
         dustVelocities[i * 3 + 0] = dir.x * speed + (Math.random() - 0.5) * 1.5;
-        dustVelocities[i * 3 + 1] = dir.y * speed + Math.random() * 1.2 + 0.3; // rise
-        dustVelocities[i * 3 + 2] = dir.z * speed + Math.random() * 1.0 + 0.2; // toward camera
+        dustVelocities[i * 3 + 1] = dir.y * speed + Math.random() * 1.2 + 0.3;
+        dustVelocities[i * 3 + 2] = dir.z * speed + Math.random() * 1.0 + 0.2;
         dustAges[i] = 0;
       }
       dustGeo.attributes.position.needsUpdate = true;
@@ -532,63 +833,203 @@
       dustEmitted = true;
     }
 
-    function fireExplosion() {
+    // ─── Mouse → world helpers ───────────────────────────────────────────
+    function setMouseFromEvent(e) {
+      mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      mouseInsideWindow = true;
+    }
+
+    // Project the current mouseNDC onto the wall plane (z=0) in world space.
+    // Used by the hover-proximity effect.
+    function updateCursorOnWall() {
+      if (!mouseInsideWindow) {
+        cursorOnWall.set(99999, 99999, 0);
+        return;
+      }
+      raycaster.setFromCamera(mouseNDC, camera);
+      if (!raycaster.ray.intersectPlane(wallPlane, cursorOnWall)) {
+        cursorOnWall.set(99999, 99999, 0);
+      }
+    }
+
+    // For a click event: try the InstancedMesh first (most accurate — picks
+    // the actual visible brick, even with proximity Z offsets). Fall back to
+    // wall-plane raycast so a click between bricks still triggers from the
+    // approximate wall point.
+    function pickWallContactPoint(e) {
+      setMouseFromEvent(e);
+      raycaster.setFromCamera(mouseNDC, camera);
+      const hits = raycaster.intersectObject(instancedMesh, false);
+      if (hits.length > 0 && hits[0].point) {
+        return hits[0].point.clone();
+      }
+      const planePt = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(wallPlane, planePt)) {
+        return planePt;
+      }
+      return null;
+    }
+
+    // ─── Hover proximity update (idle stage only) ────────────────────────
+    // Each frame: find the cursor's world position on the wall plane, then
+    // for every still-kinematic brick, lerp its Z toward (rest.z + offset)
+    // where offset peaks under the cursor and falls off smoothly within
+    // PROXIMITY_RADIUS. X and Y are pinned to the rest position — bricks
+    // don't slide around, they only push out toward the camera.
+    function updateProximity() {
+      if (stage !== 'idle') return;
+      updateCursorOnWall();
+
+      const cx = cursorOnWall.x;
+      const cy = cursorOnWall.y;
+      for (let i = 0; i < brickBodies.length; i++) {
+        const rest = brickRestPositions[i];
+        const dx2 = rest.x - cx;
+        const dy2 = rest.y - cy;
+        const dist = Math.hypot(dx2, dy2);
+
+        let targetOffset = 0;
+        if (dist < PROXIMITY_RADIUS) {
+          const t = 1 - dist / PROXIMITY_RADIUS;
+          targetOffset = PROXIMITY_MAX_OFFSET * smoothstep(t);
+        }
+
+        const body = brickBodies[i];
+        const cur = body.translation();
+        const targetZ = rest.z + targetOffset;
+        const newZ = cur.z + (targetZ - cur.z) * PROXIMITY_LERP;
+        body.setTranslation({ x: rest.x, y: rest.y, z: newZ }, false);
+      }
+    }
+
+    // ─── fireExplosion: set up the cascade — DON'T activate everything ───
+    // Computes a per-brick delay based on distance from the impact origin,
+    // simulating a slow shockwave radiating outward. The render loop
+    // (updateExplosionCascade) flips bricks to Dynamic + applies impulses
+    // as their delays elapse. This produces a visible break-from-contact.
+    function fireExplosion(origin) {
       if (stage !== 'idle') return;
       stage = 'exploding';
       clickTime = performance.now();
       triggerBtn.classList.add('gone');
-      vignetteEl.classList.add('gone'); // fade vignette so it doesn't darken the campaign site
+      vignetteEl.classList.add('gone');
 
-      // Tell the campaign-site iframe the wall is breaking, so its hero can
-      // stagger in alongside the explosion instead of having played silently
-      // while hidden behind the canvas.
       try {
         if (aftersiteEl.contentWindow) {
           aftersiteEl.contentWindow.postMessage({ type: 'wall-broken' }, '*');
         }
-      } catch (_) { /* iframe not ready yet — animations will simply skip */ }
+      } catch (_) { /* iframe not ready — fine */ }
 
-      // Switch all brick bodies to dynamic and apply impulses
-      const tmpVec = new THREE.Vector3();
-      const maxDist = Math.hypot(wallTotalW * 0.5, wallTotalH * 0.5);
+      explosionOrigin.copy(origin);
 
       for (let i = 0; i < brickBodies.length; i++) {
-        const body = brickBodies[i];
-        body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
-
-        const t = body.translation();
-        tmpVec.set(t.x - explosionOrigin.x, t.y - explosionOrigin.y, t.z - explosionOrigin.z);
-        const dist = Math.max(tmpVec.length(), 0.001);
-        tmpVec.divideScalar(dist);
-
-        // Direction jitter (~10 deg)
-        const jitterAxis = new THREE.Vector3(
-          Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
-        ).normalize();
-        const jitterAngle = (Math.random() - 0.5) * (10 * Math.PI / 180) * 2;
-        tmpVec.applyAxisAngle(jitterAxis, jitterAngle);
-
-        // Linear falloff with distance from origin, ±15% magnitude jitter
-        const falloff = 1 - Math.min(dist / maxDist, 1) * 0.6;
-        const magJitter = 0.85 + Math.random() * 0.3;
-        const mag = explosionImpulse * falloff * magJitter;
-
-        body.applyImpulse({ x: tmpVec.x * mag, y: tmpVec.y * mag, z: tmpVec.z * mag }, true);
-
-        // Random angular impulse for tumble
-        body.applyTorqueImpulse({
-          x: (Math.random() - 0.5) * 4,
-          y: (Math.random() - 0.5) * 4,
-          z: (Math.random() - 0.5) * 4,
-        }, true);
+        const rest = brickRestPositions[i];
+        const distance = origin.distanceTo(rest);
+        brickDelays[i] = (distance / SHOCK_PROPAGATION_SPEED) * 1000;
+        brickActivated[i] = false;
       }
 
-      // Dust burst disabled per design direction — the back-light + camera push
-      // carry the explosion's drama without "glowy dots".
+      // Dust burst disabled per design direction.
       // emitDustBurst();
 
       if (enableSound) {
         // TODO Stage 2: preload CC0 thud and play one-shot here.
+      }
+    }
+
+    // ─── Cascade activation: flip each brick to Dynamic when its turn comes ─
+    // Bricks within SHOCK_RADIUS of the origin get a strong outward impulse
+    // (with exponential falloff in distance — physically more accurate than
+    // the previous linear falloff) plus an angular impulse to tumble. Bricks
+    // outside the shock radius get NO outward impulse — they just lose
+    // support and fall under gravity, which is how walls actually collapse.
+    function updateExplosionCascade(now) {
+      if (stage !== 'exploding') return;
+      const tMs = now - clickTime;
+
+      for (let i = 0; i < brickBodies.length; i++) {
+        if (brickActivated[i]) continue;
+        if (tMs < brickDelays[i]) continue;
+        activateBrick(i);
+        brickActivated[i] = true;
+      }
+    }
+
+    const _impulseVec = new THREE.Vector3();
+    const _dirVec = new THREE.Vector3();
+    const _jitterAxis = new THREE.Vector3();
+    function activateBrick(i) {
+      const body = brickBodies[i];
+      // Switch to Dynamic and to the dynamic collision group so it now
+      // collides with the ground and other dynamic bricks, but ignores the
+      // remaining kinematic neighbors (no bouncing off un-broken wall).
+      body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      const collider = body.collider(0);
+      if (collider) collider.setCollisionGroups(GROUP_DYNAMIC);
+
+      const t = body.translation();
+      const dx2 = t.x - explosionOrigin.x;
+      const dy2 = t.y - explosionOrigin.y;
+      const dz2 = t.z - explosionOrigin.z;
+      const dist = Math.max(Math.hypot(dx2, dy2, dz2), 0.001);
+
+      if (dist < SHOCK_RADIUS) {
+        // Inside the shock zone: aggressive outward impulse with exponential
+        // falloff. Bricks at the contact point get the full SHOCK_IMPULSE_BASE
+        // launch + heavy forward/upward bias (debris explodes toward the
+        // camera, like a real impact pressure wave exiting the cavity).
+        // Per-brick chaos: each brick's magnitude, direction, and bias are
+        // randomized independently so no two bricks fly the same way.
+        const falloff = Math.exp(-dist / SHOCK_FALLOFF_SCALE);
+        const magJitter = 0.7 + Math.random() * 0.6;             // ±30% magnitude
+        // 15% of bricks get an extra "shrapnel" boost — chunks that fly hard
+        // and far, like the random violent fragments in a real impact.
+        const extraBoost = Math.random() < 0.15 ? (1.6 + Math.random() * 0.8) : 1.0;
+        const mag = SHOCK_IMPULSE_BASE * falloff * magJitter * extraBoost;
+
+        // Outward direction with ±~12° angular jitter so bricks scatter
+        // instead of all flying perfectly radially from the origin.
+        const baseDir = _dirVec.set(dx2 / dist, dy2 / dist, dz2 / dist);
+        const jitterAxis = _jitterAxis
+          .set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
+          .normalize();
+        baseDir.applyAxisAngle(jitterAxis, (Math.random() - 0.5) * 0.42);
+
+        // Per-brick bias variation — each brick has its own up/forward kick.
+        const upBiasV  = 0.45 * (0.55 + Math.random() * 0.9);
+        const fwdBiasV = 0.95 * (0.55 + Math.random() * 0.9);
+
+        _impulseVec.set(
+          baseDir.x * mag,
+          (baseDir.y + upBiasV) * mag,
+          (baseDir.z * 0.45 + fwdBiasV) * mag
+        );
+        body.applyImpulse({ x: _impulseVec.x, y: _impulseVec.y, z: _impulseVec.z }, true);
+
+        // Tumble — wider random torque, steeper scaling with proximity.
+        // Lower angular damping (0.30) lets these spins persist through fall.
+        const torqueMag = 2.5 + falloff * 13;
+        body.applyTorqueImpulse({
+          x: (Math.random() - 0.5) * torqueMag,
+          y: (Math.random() - 0.5) * torqueMag,
+          z: (Math.random() - 0.5) * torqueMag,
+        }, true);
+      } else {
+        // Outside the shock zone: bricks have lost support and are dropping.
+        // Add real random variation (was nearly zero before — that's why the
+        // outer fall looked monotonic) so each brick falls differently.
+        // Some go sideways, some forward, some tumble heavily.
+        body.applyImpulse({
+          x: (Math.random() - 0.5) * 1.8,
+          y: (Math.random() - 0.5) * 0.9 - 0.2,        // slight downward bias (gravity-assist)
+          z: (Math.random() - 0.5) * 1.2 + 0.35,        // slight forward bias
+        }, true);
+        body.applyTorqueImpulse({
+          x: (Math.random() - 0.5) * 3.5,
+          y: (Math.random() - 0.5) * 3.5,
+          z: (Math.random() - 0.5) * 3.5,
+        }, true);
       }
     }
 
@@ -641,7 +1082,10 @@
       if (stage !== 'exploding') return;
       const t = now - clickTime;
 
-      // Camera shake (0..T_SHAKE_MS), ease-out decay
+      // Brief camera shake on impact (0..T_SHAKE_MS), ease-out decay.
+      // Camera position otherwise stays put — no dolly/zoom animation. The
+      // iframe behind the canvas is revealed naturally as the bricks fly
+      // away and expose transparent canvas pixels.
       if (enableShake && t < T_SHAKE_MS) {
         const decay = 1 - easeOutCubic(t / T_SHAKE_MS);
         camera.position.x = cameraBase.x + (Math.random() - 0.5) * 0.1 * decay;
@@ -650,15 +1094,7 @@
         camera.position.x = cameraBase.x;
         camera.position.y = cameraBase.y;
       }
-
-      // Camera dolly (T_PUSH_DELAY..T_PUSH_DELAY+T_PUSH_MS)
-      if (t >= T_PUSH_DELAY) {
-        const pt = Math.min((t - T_PUSH_DELAY) / T_PUSH_MS, 1);
-        camera.position.z = cameraStartZ + (cameraEndZ - cameraStartZ) * easeInOutCubic(pt);
-      }
-
-      // No crossfade-to-black: the iframe is already painted behind the
-      // canvas, so the camera push naturally reveals the campaign site.
+      camera.position.z = cameraBase.z;
 
       // Done: fire callback once, run cleanup
       if (t >= T_TOTAL_MS && !onWallBrokenFired) {
@@ -673,6 +1109,14 @@
       const now = performance.now();
       const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
       lastFrameTime = now;
+
+      // Update kinematic positions BEFORE the physics step so the engine
+      // sees the new state when stepping the world.
+      if (stage === 'idle') {
+        updateProximity();
+      } else if (stage === 'exploding') {
+        updateExplosionCascade(now);
+      }
 
       world.step();
       syncInstancesFromPhysics();
@@ -719,15 +1163,31 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Wire up the trigger and resize
+    // Wire up the trigger, mouse interactions, and resize
     // ---------------------------------------------------------------------------
     function bindTrigger() {
+      // Always track the mouse so the hover-proximity effect runs during idle.
+      window.addEventListener('mousemove', setMouseFromEvent);
+      window.addEventListener('mouseout', (e) => {
+        // mouseout with no relatedTarget == cursor left the window entirely.
+        if (!e.relatedTarget && !e.toElement) mouseInsideWindow = false;
+      });
+
       if (triggerMode === 'wall-click') {
         renderer.domElement.style.cursor = 'pointer';
-        renderer.domElement.addEventListener('click', fireExplosion, { once: true });
+        renderer.domElement.addEventListener('click', (e) => {
+          if (stage !== 'idle') return;
+          const point = pickWallContactPoint(e);
+          if (point) fireExplosion(point);
+        });
         triggerBtn.classList.add('gone');
       } else {
-        triggerBtn.addEventListener('click', fireExplosion, { once: true });
+        // Button mode: fire from wall center.
+        triggerBtn.addEventListener(
+          'click',
+          () => fireExplosion(new THREE.Vector3(0, 0, 0)),
+          { once: true }
+        );
       }
     }
 
@@ -735,6 +1195,9 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      // Re-fit so the wall continues to cover the viewport at the new aspect.
+      fitCameraToWall();
+      cameraBase.copy(camera.position);
     });
 
     // ---------------------------------------------------------------------------
@@ -743,11 +1206,134 @@
     loadingEl.classList.add('hidden');
     setTimeout(() => loadingEl.remove(), 500);
 
-    // Fade button in 500ms after load
-    setTimeout(() => triggerBtn.classList.add('visible'), 500);
+    // In wall-click mode the button is hidden by .gone in bindTrigger().
+    // Only fade it in if button mode is active.
+    if (triggerMode === 'button') {
+      setTimeout(() => triggerBtn.classList.add('visible'), 500);
+    }
 
     bindTrigger();
     animate();
+
+    // ─────────────────────────────────────────────────────────────────
+    // Control panel — live tuning (Stage 1 dev tool)
+    //
+    // Each control reads/writes one of the `let` bindings up top. Some
+    // also propagate the change into Rapier (gravity → world.gravity,
+    // damping/friction/restitution → existing colliders), so changes are
+    // visible without rebuilding the wall.
+    // ─────────────────────────────────────────────────────────────────
+    function buildControlPanel() {
+      const panel = document.getElementById('cp');
+      const body  = panel.querySelector('.cp-body');
+
+      panel.querySelector('.cp-header').addEventListener('click', () => {
+        panel.classList.toggle('collapsed');
+      });
+
+      // The six controls that actually move the look of the simulation.
+      // Other knobs (damping, friction, restitution, falloff, cleanup, etc.)
+      // were removed for clarity — they live in code defaults if you need them.
+      const sections = [
+        {
+          title: 'Explosion',
+          controls: [
+            { label: 'Impulse',       min: 5,   max: 120, step: 1,   fmt: 0,
+              get: () => SHOCK_IMPULSE_BASE,
+              set: v => { SHOCK_IMPULSE_BASE = v; } },
+            { label: 'Blast radius',  min: 0.5, max: 20,  step: 0.1, fmt: 1,
+              get: () => SHOCK_RADIUS,
+              set: v => { SHOCK_RADIUS = v; } },
+            { label: 'Cascade speed', min: 5,   max: 80,  step: 1,   fmt: 0,
+              get: () => SHOCK_PROPAGATION_SPEED,
+              set: v => { SHOCK_PROPAGATION_SPEED = v; } },
+          ],
+        },
+        {
+          title: 'Falling',
+          controls: [
+            { label: 'Gravity',       min: 5,   max: 60,  step: 0.5, fmt: 1,
+              get: () => GRAVITY,
+              set: v => { GRAVITY = v; world.gravity.y = -v; } },
+          ],
+        },
+        {
+          title: 'Hover',
+          controls: [
+            { label: 'Radius',        min: 0.5, max: 10,  step: 0.1, fmt: 1,
+              get: () => PROXIMITY_RADIUS,
+              set: v => { PROXIMITY_RADIUS = v; } },
+            { label: 'Offset',        min: 0,   max: 1.5, step: 0.05, fmt: 2,
+              get: () => PROXIMITY_MAX_OFFSET,
+              set: v => { PROXIMITY_MAX_OFFSET = v; } },
+          ],
+        },
+      ];
+
+      function makeRow(ctl) {
+        const row = document.createElement('div');
+        row.className = 'cp-row';
+
+        const label = document.createElement('span');
+        label.className = 'cp-label';
+        label.textContent = ctl.label;
+
+        const value = document.createElement('span');
+        value.className = 'cp-value';
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(ctl.min);
+        input.max = String(ctl.max);
+        input.step = String(ctl.step);
+
+        const fmt = (v) => ctl.fmt === 0 ? Math.round(v).toString()
+                        : ctl.fmt === 1 ? v.toFixed(1)
+                        : v.toFixed(2);
+        const updateFill = () => {
+          const pct = ((parseFloat(input.value) - ctl.min) / (ctl.max - ctl.min)) * 100;
+          input.style.setProperty('--fill', `${pct}%`);
+        };
+
+        const initial = ctl.get();
+        input.value = String(initial);
+        value.textContent = fmt(initial);
+        updateFill();
+
+        input.addEventListener('input', () => {
+          const v = parseFloat(input.value);
+          ctl.set(v);
+          value.textContent = fmt(v);
+          updateFill();
+          persistValues(); // save to localStorage so values survive reload
+        });
+
+        row.appendChild(label);
+        row.appendChild(value);
+        row.appendChild(input);
+        return row;
+      }
+
+      for (const section of sections) {
+        const titleEl = document.createElement('div');
+        titleEl.className = 'cp-section';
+        titleEl.textContent = section.title;
+        body.appendChild(titleEl);
+        for (const ctl of section.controls) body.appendChild(makeRow(ctl));
+      }
+
+      // Reset to defaults — clears persisted values AND reloads the page so
+      // the wall is rebuilt with the in-code defaults.
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'cp-button';
+      resetBtn.textContent = 'Reset to Defaults';
+      resetBtn.addEventListener('click', () => {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+        location.reload();
+      });
+      body.appendChild(resetBtn);
+    }
+    buildControlPanel();
   </script>
 </body>
 
