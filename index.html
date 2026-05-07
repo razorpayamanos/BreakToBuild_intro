@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Break the Wall</title>
+  <!--
+  ============================================================================
+  Break the Wall - Stage 1 (standalone iteration build)
+  ============================================================================
+
+  WHAT THIS IS
+  ------------
+  This file IS the brick-wall component. Its only job is to render a 3D wall
+  built from instances of Brick.glb, break it apart with real physics on
+  click, dolly the camera through the cavity, then clean itself up. In Stage 2
+  this exact logic becomes a Framer code component — nothing campaign-site
+  related lives in here.
+
+  ARCHITECTURE (Stage 1 vs Stage 2)
+  ---------------------------------
+  Stage 1 (this iteration build):
+    index.html         the brick-wall component (you're reading it)
+      └─ <iframe> ──▶  campaign-site.html   a stand-in for the Framer page
+                                            so we can simulate "real site
+                                            behind the wall" in a browser
+  Stage 2 (Framer code component):
+    The brick-wall logic ports to a single .tsx file. The iframe element
+    is DELETED — the brick wall sits on top of the actual Framer page and
+    the same reveal happens against that page natively.
+
+  HOW TO RUN
+  ----------
+    cd <this folder>
+    python3 -m http.server 8000
+    # then open http://localhost:8000 in Chrome / Safari / Firefox
+
+  Brick.glb AND campaign-site.html must sit in the same directory as this file.
+
+  BROWSER SUPPORT
+  ---------------
+  Modern Chrome / Safari / Firefox. Requires:
+    - ES modules           (top-level <script type="module">)
+    - WebGL2               (Three.js renderer)
+    - WebAssembly          (Rapier physics)
+    - top-level await      (used to init Rapier WASM)
+
+  TUNABLE CONSTANTS
+  -----------------
+  All defined at the top of the module below. The names mirror what will become
+  Stage 2 Framer property controls.
+
+    brickGlbUrl         where to load the brick mesh from (default ./Brick.glb)
+    wallColumns         bricks across (default 20)
+    wallRows            bricks tall   (default 12)
+    explosionImpulse    base outward kick on each brick at click (default 8)
+    cameraStartZ        camera Z before click (default 8)
+    cameraEndZ          camera Z after push-through (default -2)
+    dustParticleCount   particles in the dust burst (default 150)
+    enableShake         camera shake on click (default true)
+    enableSound         sound on click (default false; Stage 1 has no audio)
+    buttonLabel         button text (default "Break the Wall")
+    triggerMode         "button" | "wall-click" (default "button")
+
+  SCOPE NOTES
+  -----------
+  - Stage 1 only. Stage 2 (Framer Code Component) is gated on explicit approval.
+  - Mobile tuning, reduced-motion handling, and replay are intentionally not
+    implemented; stub locations are commented inline.
+  ============================================================================
+-->
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      /* White so any margin Figma's proto viewer leaves around the frame
+         reads as a clean page bg, not a black screen. */
+      background: #ffffff;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: #f4f1ec;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* Loading state */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+      background: #0a0a0c;
+      color: #c8c2b8;
+      font-size: 14px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      z-index: 20;
+      transition: opacity 400ms ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid #2a2826;
+      border-top-color: #c8a070;
+      border-radius: 50%;
+      animation: spin 900ms linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Trigger button overlay */
+    #trigger {
+      position: fixed;
+      left: 50%;
+      top: 70vh;
+      transform: translate(-50%, -50%);
+      padding: 16px 36px;
+      background: rgba(12, 10, 8, 0.72);
+      color: #f4f1ec;
+      border: 1.5px solid rgba(244, 241, 236, 0.9);
+      border-radius: 2px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
+      transition: opacity 500ms ease, transform 200ms ease, background 200ms ease;
+      z-index: 5;
+      user-select: none;
+    }
+
+    #trigger.visible {
+      opacity: 1;
+      animation: pulse 2400ms ease-in-out infinite;
+    }
+
+    #trigger:hover {
+      background: rgba(28, 20, 16, 0.82);
+      transform: translate(-50%, -50%) scale(1.03);
+    }
+
+    #trigger:active {
+      transform: translate(-50%, -50%) scale(0.98);
+    }
+
+    #trigger.gone {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(244, 241, 236, 0.18);
+      }
+
+      50% {
+        box-shadow: 0 0 0 14px rgba(244, 241, 236, 0);
+      }
+    }
+
+    /* Vignette: crushes the corners while the wall is intact. Faded out the
+       moment the user clicks so the campaign site behind isn't darkened. */
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 75% 80% at 42% 55%,
+          rgba(0, 0, 0, 0) 30%,
+          rgba(0, 0, 0, 0.55) 70%,
+          rgba(0, 0, 0, 0.92) 100%);
+      opacity: 1;
+      transition: opacity 700ms ease;
+      z-index: 4;
+    }
+    #vignette.gone { opacity: 0; }
+
+    /* Campaign site iframe — sits BEHIND the canvas at all times. Loads on
+       page open so it's already painted by the time the wall breaks. As the
+       canvas above turns transparent (alpha=true) and bricks fly off, the
+       site becomes naturally visible through the gaps and the cavity. */
+    #aftersite {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      z-index: 1;
+    }
+
+    /* The Three.js canvas sits above the iframe so the brick wall covers it.
+       Pre-click the wall blocks the iframe; post-click cleanup() removes the
+       canvas and the iframe is left as the only interactive layer. */
+    canvas {
+      position: relative;
+      z-index: 2;
+    }
+
+    /* a11y / reduced-motion stub:
+     A real implementation would short-circuit the explosion timeline
+     and call onWallBroken() immediately. Not built in Stage 1. */
+  </style>
+</head>
+
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Loading wall&hellip;</div>
+  </div>
+  <button id="trigger" type="button">Break the Wall</button>
+  <div id="vignette"></div>
+  <!--
+    STAGE 1 ONLY: this iframe loads a local stand-in page so we can simulate
+    "campaign site behind the wall" while iterating on the brick-wall
+    component in the browser. In Stage 2 (Framer code component) this entire
+    iframe element is REMOVED — the brick wall will sit on top of the actual
+    Framer page and the reveal happens against that page natively.
+  -->
+  <iframe
+    id="aftersite"
+    title="Campaign site"
+    src="./campaign-site.html"
+    loading="eager"></iframe>
+
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three@0.160.0';
+    import { GLTFLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+    import RAPIER from 'https://esm.sh/@dimforge/rapier3d-compat@0.14.0';
+
+    // ---------------------------------------------------------------------------
+    // Tunable constants (Stage 2: these become Framer property controls)
+    // ---------------------------------------------------------------------------
+    const brickGlbUrl = './Brick.glb';
+    const wallColumns = 20;     // bricks across
+    const wallRows = 12;     // bricks tall
+    const explosionImpulse = 8;      // base outward kick magnitude
+    const cameraStartZ = 6;      // camera Z before click (closer = bricks bigger in frame, matches reference)
+    const cameraEndZ = -2;     // camera Z after push-through
+    const dustParticleCount = 150;    // particles in the dust burst
+    const enableShake = true;
+    const enableSound = false;  // Stage 1: no audio. TODO Stage 2: load CC0 thud and play one-shot.
+    const buttonLabel = 'Break the Wall';
+    const triggerMode = 'button'; // 'button' | 'wall-click'
+
+    // Internal timing (ms, relative to click)
+    const T_SHAKE_MS = 300;
+    const T_PUSH_DELAY = 600;
+    const T_PUSH_MS = 1200;
+    const T_FADE_MS = 400; // tail of push
+    const T_TOTAL_MS = T_PUSH_DELAY + T_PUSH_MS; // 1800
+
+    // Mortar gap (kept minimal so the iframe behind doesn't leak through seams)
+    const MORTAR_GAP = 0.005;
+
+    // ---------------------------------------------------------------------------
+    // Boot: init physics WASM, then build everything
+    // ---------------------------------------------------------------------------
+    await RAPIER.init();
+
+    const triggerBtn = document.getElementById('trigger');
+    const loadingEl = document.getElementById('loading');
+    const aftersiteEl = document.getElementById('aftersite');
+    const vignetteEl = document.getElementById('vignette');
+    triggerBtn.textContent = buttonLabel;
+
+    // ---------------------------------------------------------------------------
+    // Three.js setup
+    // ---------------------------------------------------------------------------
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0); // fully transparent — iframe shows through
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    // No scene.background — keep the canvas transparent so the iframe behind
+    // it is visible through any pixel that isn't covered by a brick.
+    // No fog — the CSS vignette handles depth-cueing/corner darkening cleanly.
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0, cameraStartZ);
+    camera.lookAt(0, 0, 0);
+
+    // Lighting: clean, even, slightly raked. The reference's bright-center / dark-
+    // corner falloff is delivered by the CSS #vignette overlay; the 3D lights just
+    // give bricks honest form and a touch of directionality so the embossed text
+    // reads. Neutral whites — no warm/cool tint.
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(-3, 4, 9);
+    keyLight.target.position.set(0, 0, 0);
+    scene.add(keyLight);
+    scene.add(keyLight.target);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 40;
+    keyLight.shadow.camera.left = -30;
+    keyLight.shadow.camera.right = 30;
+    keyLight.shadow.camera.top = 10;
+    keyLight.shadow.camera.bottom = -10;
+    keyLight.shadow.bias = -0.0005;
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
+    fillLight.position.set(4, -2, 7);
+    scene.add(fillLight);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+    scene.add(ambient);
+
+    // Back-light: positioned behind the wall, facing forward. While the wall is
+    // intact this lights the back faces (we don't see it). After the explosion,
+    // tumbling debris gets rim-lit from behind and the cavity opens onto a hot
+    // white core — implying light pouring forward from the campaign site.
+    const backLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    backLight.position.set(0, 0, -8);
+    backLight.target.position.set(0, 0, 5);
+    scene.add(backLight);
+    scene.add(backLight.target);
+
+    const backGlow = new THREE.PointLight(0xffffff, 6, 18, 1.6);
+    backGlow.position.set(0, 0, -2.5);
+    scene.add(backGlow);
+
+    // ---------------------------------------------------------------------------
+    // Load the brick GLB and extract a normalized geometry + material
+    // ---------------------------------------------------------------------------
+    const loader = new GLTFLoader();
+    const gltf = await loader.loadAsync(brickGlbUrl);
+
+    let sourceMesh = null;
+    gltf.scene.traverse((o) => { if (!sourceMesh && o.isMesh) sourceMesh = o; });
+    if (!sourceMesh) throw new Error('Brick.glb has no mesh');
+    sourceMesh.updateMatrixWorld(true);
+
+    // Bake parent transforms into geometry, then recenter at origin so each
+    // instance's pose maps cleanly to a Rapier body pose.
+    const brickGeometry = sourceMesh.geometry.clone();
+    brickGeometry.applyMatrix4(sourceMesh.matrixWorld);
+    brickGeometry.computeBoundingBox();
+    const bbCenter = new THREE.Vector3();
+    brickGeometry.boundingBox.getCenter(bbCenter);
+    brickGeometry.translate(-bbCenter.x, -bbCenter.y, -bbCenter.z);
+    brickGeometry.computeBoundingBox();
+    const brickSize = new THREE.Vector3();
+    brickGeometry.boundingBox.getSize(brickSize);
+    const halfExtents = { x: brickSize.x / 2, y: brickSize.y / 2, z: brickSize.z / 2 };
+
+    // The GLB material is set with alphaMode=BLEND + double-sided. For an opaque
+    // brick that breaks depth sorting on a 240-instance mesh, force opaque.
+    // Texture is preserved as-is (the GLB ships with the BREAK TO BUILD branding).
+    const brickMaterial = sourceMesh.material.clone();
+    brickMaterial.transparent = false;
+    brickMaterial.depthWrite = true;
+    brickMaterial.side = THREE.FrontSide;
+    if (brickMaterial.map) brickMaterial.map.colorSpace = THREE.SRGBColorSpace;
+
+    // ---------------------------------------------------------------------------
+    // Build the wall (running-bond pattern, instanced)
+    // ---------------------------------------------------------------------------
+    const dx = brickSize.x + MORTAR_GAP;
+    const dy = brickSize.y + MORTAR_GAP;
+    const wallTotalH = wallRows * dy;
+    const wallTotalW = wallColumns * dx;
+    const brickCount = wallColumns * wallRows;
+
+    const instancedMesh = new THREE.InstancedMesh(brickGeometry, brickMaterial, brickCount);
+    instancedMesh.castShadow = true;
+    instancedMesh.receiveShadow = true;
+    instancedMesh.frustumCulled = false; // bricks fly far at explode time
+    scene.add(instancedMesh);
+
+    // No mortar plane — it would block the iframe behind the wall. With
+    // MORTAR_GAP set to 0.005 the seams between bricks are essentially zero
+    // visual width, so no iframe shows through pre-explosion.
+
+    // ---------------------------------------------------------------------------
+    // Rapier physics
+    // ---------------------------------------------------------------------------
+    const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+
+    // Static ground far below — debris always lands somewhere
+    const groundY = -wallTotalH / 2 - 6;
+    const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, groundY, 0);
+    const groundBody = world.createRigidBody(groundDesc);
+    const groundColliderDesc = RAPIER.ColliderDesc.cuboid(80, 0.5, 40);
+    world.createCollider(groundColliderDesc, groundBody);
+
+    // Per-brick: kinematicPositionBased (rock-still under gravity) until click
+    const brickBodies = [];
+    const tmpMat = new THREE.Matrix4();
+    const tmpQuat = new THREE.Quaternion();
+    const tmpScale = new THREE.Vector3(1, 1, 1);
+    const tmpPos = new THREE.Vector3();
+
+    for (let row = 0; row < wallRows; row++) {
+      const rowOffset = (row % 2 === 1) ? dx * 0.5 : 0;
+      for (let col = 0; col < wallColumns; col++) {
+        const i = row * wallColumns + col;
+        const x = (col - (wallColumns - 1) / 2) * dx + rowOffset;
+        const y = (row - (wallRows - 1) / 2) * dy;
+        const z = 0;
+
+        tmpPos.set(x, y, z);
+        tmpQuat.identity();
+        tmpMat.compose(tmpPos, tmpQuat, tmpScale);
+        instancedMesh.setMatrixAt(i, tmpMat);
+
+        const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+          .setTranslation(x, y, z);
+        const body = world.createRigidBody(bodyDesc);
+        const colDesc = RAPIER.ColliderDesc
+          .cuboid(halfExtents.x, halfExtents.y, halfExtents.z)
+          .setDensity(2.0)        // brick is heavy
+          .setFriction(0.7)
+          .setRestitution(0.05);  // slight bounce, mostly absorbs
+        world.createCollider(colDesc, body);
+        brickBodies.push(body);
+      }
+    }
+    instancedMesh.instanceMatrix.needsUpdate = true;
+
+    // ---------------------------------------------------------------------------
+    // Dust particles (THREE.Points, runtime-generated soft circle alpha)
+    // ---------------------------------------------------------------------------
+    function makeSoftDiscTexture() {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0.0, 'rgba(255,255,255,1)');
+      grd.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+      grd.addColorStop(1.0, 'rgba(255,255,255,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(dustParticleCount * 3);
+    const dustVelocities = new Float32Array(dustParticleCount * 3);
+    const dustAges = new Float32Array(dustParticleCount); // -1 means inactive
+    for (let i = 0; i < dustParticleCount; i++) dustAges[i] = -1;
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+    const dustMat = new THREE.PointsMaterial({
+      size: 0.9,
+      map: makeSoftDiscTexture(),
+      color: 0xc8b89a,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      sizeAttenuation: true,
+    });
+    const dustPoints = new THREE.Points(dustGeo, dustMat);
+    dustPoints.frustumCulled = false;
+    dustPoints.visible = false; // hidden until the explosion emits the burst
+    scene.add(dustPoints);
+
+    // ---------------------------------------------------------------------------
+    // Animation state machine
+    // ---------------------------------------------------------------------------
+    let stage = 'idle';     // 'idle' | 'exploding' | 'done'
+    let clickTime = 0;
+    let dustEmitted = false;
+    let onWallBrokenFired = false;
+    const cameraBase = new THREE.Vector3().copy(camera.position);
+
+    const explosionOrigin = new THREE.Vector3(0, 0, -0.5);
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function emitDustBurst() {
+      for (let i = 0; i < dustParticleCount; i++) {
+        // Position: random point within the wall plane (slightly thickened)
+        const px = (Math.random() - 0.5) * wallTotalW * 0.95;
+        const py = (Math.random() - 0.5) * wallTotalH * 0.95;
+        const pz = (Math.random() - 0.5) * 0.4;
+        dustPositions[i * 3 + 0] = px;
+        dustPositions[i * 3 + 1] = py;
+        dustPositions[i * 3 + 2] = pz;
+
+        // Velocity: outward from explosion origin, with up-bias and forward-bias
+        const dir = new THREE.Vector3(px, py, pz).sub(explosionOrigin);
+        const dist = Math.max(dir.length(), 0.001);
+        dir.divideScalar(dist);
+        const speed = 2 + Math.random() * 4;
+        dustVelocities[i * 3 + 0] = dir.x * speed + (Math.random() - 0.5) * 1.5;
+        dustVelocities[i * 3 + 1] = dir.y * speed + Math.random() * 1.2 + 0.3; // rise
+        dustVelocities[i * 3 + 2] = dir.z * speed + Math.random() * 1.0 + 0.2; // toward camera
+        dustAges[i] = 0;
+      }
+      dustGeo.attributes.position.needsUpdate = true;
+      dustMat.opacity = 0.85;
+      dustPoints.visible = true;
+      dustEmitted = true;
+    }
+
+    function fireExplosion() {
+      if (stage !== 'idle') return;
+      stage = 'exploding';
+      clickTime = performance.now();
+      triggerBtn.classList.add('gone');
+      vignetteEl.classList.add('gone'); // fade vignette so it doesn't darken the campaign site
+
+      // Tell the campaign-site iframe the wall is breaking, so its hero can
+      // stagger in alongside the explosion instead of having played silently
+      // while hidden behind the canvas.
+      try {
+        if (aftersiteEl.contentWindow) {
+          aftersiteEl.contentWindow.postMessage({ type: 'wall-broken' }, '*');
+        }
+      } catch (_) { /* iframe not ready yet — animations will simply skip */ }
+
+      // Switch all brick bodies to dynamic and apply impulses
+      const tmpVec = new THREE.Vector3();
+      const maxDist = Math.hypot(wallTotalW * 0.5, wallTotalH * 0.5);
+
+      for (let i = 0; i < brickBodies.length; i++) {
+        const body = brickBodies[i];
+        body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+
+        const t = body.translation();
+        tmpVec.set(t.x - explosionOrigin.x, t.y - explosionOrigin.y, t.z - explosionOrigin.z);
+        const dist = Math.max(tmpVec.length(), 0.001);
+        tmpVec.divideScalar(dist);
+
+        // Direction jitter (~10 deg)
+        const jitterAxis = new THREE.Vector3(
+          Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
+        ).normalize();
+        const jitterAngle = (Math.random() - 0.5) * (10 * Math.PI / 180) * 2;
+        tmpVec.applyAxisAngle(jitterAxis, jitterAngle);
+
+        // Linear falloff with distance from origin, ±15% magnitude jitter
+        const falloff = 1 - Math.min(dist / maxDist, 1) * 0.6;
+        const magJitter = 0.85 + Math.random() * 0.3;
+        const mag = explosionImpulse * falloff * magJitter;
+
+        body.applyImpulse({ x: tmpVec.x * mag, y: tmpVec.y * mag, z: tmpVec.z * mag }, true);
+
+        // Random angular impulse for tumble
+        body.applyTorqueImpulse({
+          x: (Math.random() - 0.5) * 4,
+          y: (Math.random() - 0.5) * 4,
+          z: (Math.random() - 0.5) * 4,
+        }, true);
+      }
+
+      // Dust burst disabled per design direction — the back-light + camera push
+      // carry the explosion's drama without "glowy dots".
+      // emitDustBurst();
+
+      if (enableSound) {
+        // TODO Stage 2: preload CC0 thud and play one-shot here.
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Render loop
+    // ---------------------------------------------------------------------------
+    let rafId = null;
+    let lastFrameTime = performance.now();
+
+    const tmpMat2 = new THREE.Matrix4();
+    const tmpPos2 = new THREE.Vector3();
+    const tmpQuat2 = new THREE.Quaternion();
+
+    function syncInstancesFromPhysics() {
+      for (let i = 0; i < brickBodies.length; i++) {
+        const body = brickBodies[i];
+        const t = body.translation();
+        const r = body.rotation();
+        tmpPos2.set(t.x, t.y, t.z);
+        tmpQuat2.set(r.x, r.y, r.z, r.w);
+        tmpMat2.compose(tmpPos2, tmpQuat2, tmpScale);
+        instancedMesh.setMatrixAt(i, tmpMat2);
+      }
+      instancedMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function updateDust(dt) {
+      if (!dustEmitted) return;
+      let anyAlive = false;
+      for (let i = 0; i < dustParticleCount; i++) {
+        if (dustAges[i] < 0) continue;
+        dustAges[i] += dt;
+        if (dustAges[i] > 1.5) { dustAges[i] = -1; continue; }
+        anyAlive = true;
+        dustPositions[i * 3 + 0] += dustVelocities[i * 3 + 0] * dt;
+        dustPositions[i * 3 + 1] += dustVelocities[i * 3 + 1] * dt;
+        dustPositions[i * 3 + 2] += dustVelocities[i * 3 + 2] * dt;
+        // Drag + gravity for dust
+        dustVelocities[i * 3 + 0] *= 0.96;
+        dustVelocities[i * 3 + 1] = dustVelocities[i * 3 + 1] * 0.97 - 0.4 * dt;
+        dustVelocities[i * 3 + 2] *= 0.96;
+      }
+      dustGeo.attributes.position.needsUpdate = true;
+      // Global opacity falls with the oldest particles' age
+      const avgFade = Math.max(...dustAges) >= 0 ? Math.max(...dustAges) / 1.5 : 1;
+      dustMat.opacity = anyAlive ? 0.85 * (1 - Math.min(avgFade, 1)) : 0;
+    }
+
+    function updateAnimationStage(now) {
+      if (stage !== 'exploding') return;
+      const t = now - clickTime;
+
+      // Camera shake (0..T_SHAKE_MS), ease-out decay
+      if (enableShake && t < T_SHAKE_MS) {
+        const decay = 1 - easeOutCubic(t / T_SHAKE_MS);
+        camera.position.x = cameraBase.x + (Math.random() - 0.5) * 0.1 * decay;
+        camera.position.y = cameraBase.y + (Math.random() - 0.5) * 0.1 * decay;
+      } else {
+        camera.position.x = cameraBase.x;
+        camera.position.y = cameraBase.y;
+      }
+
+      // Camera dolly (T_PUSH_DELAY..T_PUSH_DELAY+T_PUSH_MS)
+      if (t >= T_PUSH_DELAY) {
+        const pt = Math.min((t - T_PUSH_DELAY) / T_PUSH_MS, 1);
+        camera.position.z = cameraStartZ + (cameraEndZ - cameraStartZ) * easeInOutCubic(pt);
+      }
+
+      // No crossfade-to-black: the iframe is already painted behind the
+      // canvas, so the camera push naturally reveals the campaign site.
+
+      // Done: fire callback once, run cleanup
+      if (t >= T_TOTAL_MS && !onWallBrokenFired) {
+        onWallBrokenFired = true;
+        stage = 'done';
+        onWallBroken();
+      }
+    }
+
+    function animate() {
+      rafId = requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+      lastFrameTime = now;
+
+      world.step();
+      syncInstancesFromPhysics();
+      updateDust(dt);
+      updateAnimationStage(now);
+
+      renderer.render(scene, camera);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Hand-off + cleanup
+    // ---------------------------------------------------------------------------
+    function onWallBroken() {
+      // The iframe has been visible (behind the canvas) the whole time. Once
+      // the canvas is removed in cleanup(), the iframe is the only layer and
+      // becomes interactive. Stage 2: invoke a prop callback here for Framer.
+      cleanup();
+    }
+
+    function cleanup() {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+
+      scene.traverse((obj) => {
+        if (obj.isMesh || obj.isPoints || obj.isInstancedMesh) {
+          if (obj.geometry) obj.geometry.dispose();
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) {
+            if (!m) continue;
+            for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) {
+              if (m[k]) m[k].dispose();
+            }
+            m.dispose();
+          }
+        }
+      });
+
+      renderer.dispose();
+      if (renderer.domElement && renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+
+      world.free();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Wire up the trigger and resize
+    // ---------------------------------------------------------------------------
+    function bindTrigger() {
+      if (triggerMode === 'wall-click') {
+        renderer.domElement.style.cursor = 'pointer';
+        renderer.domElement.addEventListener('click', fireExplosion, { once: true });
+        triggerBtn.classList.add('gone');
+      } else {
+        triggerBtn.addEventListener('click', fireExplosion, { once: true });
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---------------------------------------------------------------------------
+    // Go
+    // ---------------------------------------------------------------------------
+    loadingEl.classList.add('hidden');
+    setTimeout(() => loadingEl.remove(), 500);
+
+    // Fade button in 500ms after load
+    setTimeout(() => triggerBtn.classList.add('visible'), 500);
+
+    bindTrigger();
+    animate();
+  </script>
+</body>
+
+</html>

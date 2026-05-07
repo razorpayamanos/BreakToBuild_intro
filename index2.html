@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Break the Wall</title>
+  <!--
+  ============================================================================
+  Break the Wall - Stage 1 alternate build
+  ============================================================================
+
+  This file keeps the same standalone browser UI as index.html, but it replaces
+  the generated Brick.glb wall + Rapier physics with the pre-animated Wall.glb.
+
+  Stage 1:
+    index2.html        the animated Wall.glb reveal wrapper
+      -> iframe        campaign-site.html, the local stand-in page revealed
+                       behind the wall
+
+  Stage 2:
+    The iframe is removed when this is ported into a Framer code component. The
+    component will sit over the real Framer page instead.
+
+  HOW TO RUN
+  ----------
+    cd <this folder>
+    python3 -m http.server 8000
+    # then open http://localhost:8000/index2.html
+
+  Wall.glb and campaign-site.html must sit in the same directory as this file.
+  ============================================================================
+  -->
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #ffffff;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: #f4f1ec;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+      background: #0a0a0c;
+      color: #c8c2b8;
+      font-size: 14px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      z-index: 20;
+      transition: opacity 400ms ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid #2a2826;
+      border-top-color: #c8a070;
+      border-radius: 50%;
+      animation: spin 900ms linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #trigger {
+      position: fixed;
+      left: 50%;
+      top: 70vh;
+      transform: translate(-50%, -50%);
+      padding: 16px 36px;
+      background: rgba(12, 10, 8, 0.72);
+      color: #f4f1ec;
+      border: 1.5px solid rgba(244, 241, 236, 0.9);
+      border-radius: 2px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
+      transition: opacity 500ms ease, transform 200ms ease, background 200ms ease;
+      z-index: 5;
+      user-select: none;
+    }
+
+    #trigger.visible {
+      opacity: 1;
+      animation: pulse 2400ms ease-in-out infinite;
+    }
+
+    #trigger:hover {
+      background: rgba(28, 20, 16, 0.82);
+      transform: translate(-50%, -50%) scale(1.03);
+    }
+
+    #trigger:active {
+      transform: translate(-50%, -50%) scale(0.98);
+    }
+
+    #trigger.gone {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(244, 241, 236, 0.18);
+      }
+
+      50% {
+        box-shadow: 0 0 0 14px rgba(244, 241, 236, 0);
+      }
+    }
+
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 75% 80% at 42% 55%,
+          rgba(0, 0, 0, 0) 30%,
+          rgba(0, 0, 0, 0.55) 70%,
+          rgba(0, 0, 0, 0.92) 100%);
+      opacity: 1;
+      transition: opacity 700ms ease;
+      z-index: 4;
+    }
+
+    #vignette.gone {
+      opacity: 0;
+    }
+
+    #aftersite {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      z-index: 1;
+    }
+
+    canvas {
+      position: relative;
+      z-index: 2;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Loading wall&hellip;</div>
+  </div>
+  <button id="trigger" type="button">Break the Wall</button>
+  <div id="vignette"></div>
+  <iframe
+    id="aftersite"
+    title="Campaign site"
+    src="./campaign-site.html"
+    loading="eager"></iframe>
+
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three@0.160.0';
+    import { GLTFLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+
+    const wallGlbUrl = './Wall.glb';
+    const buttonLabel = 'Break the Wall';
+    const triggerMode = 'button';
+    // Cleanup happens when the GLB animation finishes; the actual duration
+    // is read from the longest clip in setupWallAnimation. This is just a
+    // fallback in case the GLB has no animation.
+    const FALLBACK_ANIMATION_SECONDS = 2.0;
+
+    const triggerBtn = document.getElementById('trigger');
+    const loadingEl = document.getElementById('loading');
+    const aftersiteEl = document.getElementById('aftersite');
+    const vignetteEl = document.getElementById('vignette');
+    triggerBtn.textContent = buttonLabel;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    // The camera is loaded from Wall.glb (you authored it in Blender and
+    // included it in the export). It's resolved after the GLB finishes
+    // loading, in pickWallCamera() below.
+    let camera = null;
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(-3, 4, 9);
+    keyLight.target.position.set(0, 0, 0);
+    scene.add(keyLight);
+    scene.add(keyLight.target);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 40;
+    keyLight.shadow.camera.left = -30;
+    keyLight.shadow.camera.right = 30;
+    keyLight.shadow.camera.top = 10;
+    keyLight.shadow.camera.bottom = -10;
+    keyLight.shadow.bias = -0.0005;
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
+    fillLight.position.set(4, -2, 7);
+    scene.add(fillLight);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+    scene.add(ambient);
+
+    const backLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    backLight.position.set(0, 0, -8);
+    backLight.target.position.set(0, 0, 5);
+    scene.add(backLight);
+    scene.add(backLight.target);
+
+    const backGlow = new THREE.PointLight(0xffffff, 6, 18, 1.6);
+    backGlow.position.set(0, 0, -2.5);
+    scene.add(backGlow);
+
+    const wallGroup = new THREE.Group();
+    scene.add(wallGroup);
+
+    let mixer = null;
+    let actions = [];
+    let animationDuration = FALLBACK_ANIMATION_SECONDS;
+    let stage = 'idle';
+    let clickTime = 0;
+    let onWallBrokenFired = false;
+    let rafId = null;
+    let lastFrameTime = performance.now();
+
+    const loader = new GLTFLoader();
+
+    try {
+      const gltf = await loader.loadAsync(wallGlbUrl);
+      const animatedWallScene =
+        gltf.scenes.find((candidate) => candidate.name === 'Wall_Setup') ||
+        gltf.scene ||
+        gltf.scenes.find((candidate) => {
+          const childNames = new Set(candidate.children.map((child) => child.name));
+          return gltf.animations.some((clip) => childNames.has(clip.name));
+        });
+
+      keepOnlyBrickMeshes(animatedWallScene);
+      wallGroup.add(animatedWallScene);
+      prepareWallMaterials(animatedWallScene);
+      setupWallAnimation(animatedWallScene, gltf.animations);
+      camera = pickWallCamera(gltf);
+
+      loadingEl.classList.add('hidden');
+      setTimeout(() => loadingEl.remove(), 500);
+      setTimeout(() => triggerBtn.classList.add('visible'), 500);
+
+      bindTrigger();
+      animate();
+    } catch (error) {
+      console.error(error);
+      loadingEl.innerHTML = '<div>Wall failed to load</div>';
+    }
+
+    function keepOnlyBrickMeshes(root) {
+      // Preserve any branch that contains a camera so the GLB-defined
+      // viewport survives this culling step. Without this, the camera node
+      // (and its parent rig, if any) would be deleted before we render.
+      const preserve = new Set();
+      root.traverse((obj) => {
+        if (obj.isCamera) {
+          let p = obj;
+          while (p && p !== root) {
+            preserve.add(p);
+            p = p.parent;
+          }
+        }
+      });
+
+      for (let i = root.children.length - 1; i >= 0; i--) {
+        const child = root.children[i];
+        const isBrick = child.name && child.name.startsWith('BrickFace');
+        if (!isBrick && !preserve.has(child)) {
+          root.remove(child);
+        }
+      }
+    }
+
+    function prepareWallMaterials(root) {
+      root.traverse((obj) => {
+        if (!obj.isMesh) return;
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+        obj.frustumCulled = false;
+
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const material of materials) {
+          if (!material) continue;
+          material.transparent = false;
+          material.opacity = 1;
+          material.depthWrite = true;
+          material.side = THREE.FrontSide;
+          if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      });
+    }
+
+    function setupWallAnimation(root, clips) {
+      mixer = new THREE.AnimationMixer(root);
+      const targetNames = collectAnimationTargetNames(root);
+      const playableClips = clips.filter((clip) => clip.tracks.every((track) => {
+        const targetName = track.name.slice(0, track.name.lastIndexOf('.'));
+        return targetNames.has(targetName);
+      }));
+
+      actions = playableClips.map((clip) => {
+        animationDuration = Math.max(animationDuration, clip.duration);
+        const action = mixer.clipAction(clip);
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+        action.enabled = true;
+        action.play();
+        return action;
+      });
+
+      mixer.setTime(0);
+      mixer.timeScale = 0;
+    }
+
+    function collectAnimationTargetNames(root) {
+      const names = new Set();
+      const sanitize = THREE.PropertyBinding?.sanitizeNodeName ||
+        ((name) => name.replace(/[\[\]\.:/]/g, ''));
+
+      root.traverse((obj) => {
+        if (!obj.name) return;
+        names.add(obj.name);
+        names.add(sanitize(obj.name));
+      });
+
+      return names;
+    }
+
+    function pickWallCamera(gltf) {
+      // Use the camera authored inside Wall.glb. The user composed the wall
+      // and the framing together in Blender, so this is the viewport we want.
+      // We only override aspect (Blender's exported aspect won't match the
+      // browser viewport) and re-derive the projection matrix.
+      const cam = gltf.cameras && gltf.cameras[0];
+      if (cam && cam.isCamera) {
+        if (cam.isPerspectiveCamera) {
+          cam.aspect = window.innerWidth / window.innerHeight;
+          cam.updateProjectionMatrix();
+        }
+        cam.updateMatrixWorld(true);
+        return cam;
+      }
+      console.warn('[Wall] No camera found in Wall.glb — falling back to a default perspective camera.');
+      const fallback = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+      fallback.position.set(0, 0, 6);
+      fallback.lookAt(0, 0, 0);
+      scene.add(fallback);
+      return fallback;
+    }
+
+    function fireExplosion() {
+      if (stage !== 'idle') return;
+      stage = 'exploding';
+      clickTime = performance.now();
+      triggerBtn.classList.add('gone');
+      vignetteEl.classList.add('gone');
+
+      try {
+        if (aftersiteEl.contentWindow) {
+          aftersiteEl.contentWindow.postMessage({ type: 'wall-broken' }, '*');
+        }
+      } catch (_) {
+        /* The iframe may not be ready; the wall reveal still continues. */
+      }
+
+      if (mixer && actions.length) {
+        mixer.timeScale = 1;
+        actions.forEach((action) => {
+          action.reset();
+          action.enabled = true;
+          action.paused = false;
+          action.setEffectiveTimeScale(1);
+          action.setEffectiveWeight(1);
+          action.play();
+        });
+        mixer.setTime(0);
+      }
+    }
+
+    function updateAnimationStage(now) {
+      if (stage !== 'exploding') return;
+      const t = now - clickTime;
+
+      // No camera shake, no camera dolly — the only motion the user wants
+      // is the wall-break animation baked into Wall.glb. If the GLB camera
+      // has its own animation tracks, the AnimationMixer will still drive
+      // it (because the camera lives inside the animated subtree).
+
+      if (t >= animationDuration * 1000 && !onWallBrokenFired) {
+        onWallBrokenFired = true;
+        stage = 'done';
+        onWallBroken();
+      }
+    }
+
+    function animate() {
+      rafId = requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+      lastFrameTime = now;
+
+      if (mixer) mixer.update(dt);
+      updateAnimationStage(now);
+
+      renderer.render(scene, camera);
+    }
+
+    function onWallBroken() {
+      cleanup();
+    }
+
+    function cleanup() {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+      if (mixer) mixer.stopAllAction();
+
+      const geometries = new Set();
+      const materials = new Set();
+      const textures = new Set();
+
+      scene.traverse((obj) => {
+        if (obj.geometry) geometries.add(obj.geometry);
+        const objMaterials = obj.material
+          ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+          : [];
+        for (const material of objMaterials) {
+          if (!material) continue;
+          materials.add(material);
+          for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) {
+            if (material[key]) textures.add(material[key]);
+          }
+        }
+      });
+
+      geometries.forEach((geometry) => geometry.dispose());
+      textures.forEach((texture) => texture.dispose());
+      materials.forEach((material) => material.dispose());
+
+      renderer.dispose();
+      if (renderer.domElement && renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+    }
+
+    function bindTrigger() {
+      if (triggerMode === 'wall-click') {
+        renderer.domElement.style.cursor = 'pointer';
+        renderer.domElement.addEventListener('click', fireExplosion, { once: true });
+        triggerBtn.classList.add('gone');
+      } else {
+        triggerBtn.addEventListener('click', fireExplosion, { once: true });
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (camera && camera.isPerspectiveCamera) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      }
+    });
+  </script>
+</body>
+
+</html>
